@@ -10,7 +10,8 @@ export function component(width:any, height:any, color:any, x:any, y:any, dir: n
     this.height = height;
     this.direction = dir;
     this.x = x;
-    this.y = y;   
+    this.y = y;
+    this.points = 0;    
     this.draw = function(){
         context.fillStyle = color;
         context.fillRect(this.x, this.y, this.width, this.height);

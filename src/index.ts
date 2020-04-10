@@ -21,11 +21,13 @@ const checkWalls = (x: number, y:number) => {
     return (x === canvas.width || y === canvas.height || x === 0 || y === 1) ? true : false;
 }
 
-const lost = (text:string) => {
-    var h = document.createElement("H1");
-    var t = document.createTextNode(text);
-    h.appendChild(t);
-    document.body.appendChild(h);
+const lost = (text:string, pointsP1:number, pointsP2:number) => {
+    var msg = document.getElementById("game_msg")
+    var score1 = document.getElementById("score1")
+    var score2 = document.getElementById("score2")
+    msg.textContent = text;
+    score1.textContent = "Puntos Jugador 1: " + pointsP1.toString();
+    score2.textContent = "Puntos Jugador 2: " + pointsP2.toString();
 }
 
 const newDirection = (actual:number, move:number) => {
@@ -132,14 +134,16 @@ const paddle$ = interval(10).pipe(
     var p1Collision = checkCollision(player1.x, player1.y); //contra jugadores
     var p1WallCollision = checkWalls(player1.x, player1.y);  // contra paredes
     if(p1Collision || p1WallCollision){ 
-        lost('Jugador 2 gana c:')
+        player2.points += 1
+        lost('Jugador 2 gana c:', player1.points, player2.points)
         paddle$.unsubscribe();
     }
 
     var p2Collision = checkCollision(player2.x, player2.y); //contra jugadores
     var p2WallCollision = checkWalls(player2.x, player2.y);  // contra paredes
     if(p2Collision || p2WallCollision){ 
-        lost('Jugador 1 gana c:')
+        player1.points += 1
+        lost('Jugador 1 gana c:', player1.points, player2.points)
         paddle$.unsubscribe();
     }
 
