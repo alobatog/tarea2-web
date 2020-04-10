@@ -1,5 +1,5 @@
 import { interval, fromEvent, merge } from 'rxjs';
-import { map, scan, withLatestFrom } from 'rxjs/operators';
+import { map, scan, withLatestFrom, filter } from 'rxjs/operators';
 import { component, canvas } from './canvas'
 
 /* Functions */
@@ -42,6 +42,8 @@ const newDirection = (actual:number, move:number) => {
 
 /* RXJS */
 
+
+
 const ticker$ = interval(20).pipe(
     map( () =>  ({
         time: Date.now(),
@@ -73,6 +75,7 @@ const input$ = merge(
     fromEvent(document, 'keyup').pipe(map(() => 0))
 )
 
+var keep:boolean = true;
 var player1:any;
 var player2:any;
 
@@ -97,6 +100,8 @@ const paddle$ = interval(10).pipe(
     }))
 ).subscribe((x:any) => {
 
+
+    if(!keep){return}
     /* Dibujo a los dos jugadores */
     player1.draw();
     player2.draw();
@@ -139,3 +144,11 @@ const paddle$ = interval(10).pipe(
     }
 
 })
+
+const pause$ = fromEvent(document, "keypress").pipe(
+    filter((event:any) => event.key == "p")
+).subscribe(
+    (x:any) => {
+        keep = !keep;
+    }
+)
