@@ -1,11 +1,19 @@
 import { interval, fromEvent, merge } from 'rxjs';
 import { map, scan, withLatestFrom, filter } from 'rxjs/operators';
-import { component, canvas } from './canvas'
+import { component, GameArea } from './canvas'
 
 /* Functions */
 
 const SPEED:number = 0.5
-var coordinates = new Set()
+var coordinates = new Set();
+var Area:any = new (GameArea as any);
+
+const resetGame = function(player1:any, player2:any){
+    Area.clear();
+    coordinates.clear();
+    player1.reset();
+    player2.reset()
+}
 
 const addCoordinate = (x:number, y:number) => coordinates.add(x.toString() + y.toString())
 
@@ -18,7 +26,7 @@ const checkCollision = (x:number, y:number) => {
 
 
 const checkWalls = (x: number, y:number) => {
-    return (x === canvas.width || y === canvas.height || x === 0 || y === 1) ? true : false;
+    return (x === Area.width || y === Area.height || x === 0 || y === 1) ? true : false;
 }
 
 const lost = (text:string, pointsP1:number, pointsP2:number) => {
@@ -88,6 +96,63 @@ player2 = new (component as any)(5, 5, "blue", 470, 120, 4);
 player2.draw();
 
 
+const paddleObserver = {
+    next: function(x:any){
+        if(!keep){return}
+        /* Dibujo a los dos jugadores */
+        player1.draw();
+        player2.draw();
+
+        /* Compruebo el tiempo de los inputs */
+        if (x.input === 1 || x.input === -1){
+            x.input = x.ticks1 > 20 ? x.input : 0;
+            player1.direction = newDirection(player1.direction, x.input);
+        }
+
+        if (x.input === 2 || x.input === -2){
+            x.input = x.ticks2 > 20 ? x.input : 0;
+            player2.direction = newDirection(player2.direction, x.input/2);
+        }
+
+        /* Muevo los jugadores (QUE ALGUIEN HAGA MAS BONITO ESTO)*/
+        if(player1.direction===3){ player1.y += SPEED }
+        if(player1.direction===2){ player1.x += SPEED }
+        if(player1.direction===4){ player1.x -= SPEED }
+        if(player1.direction===1){ player1.y -= SPEED }
+
+        if(player2.direction===3){ player2.y += SPEED }
+        if(player2.direction===2){ player2.x += SPEED }
+        if(player2.direction===4){ player2.x -= SPEED }
+        if(player2.direction===1){ player2.y -= SPEED }
+
+        /* Chekeo colisiones */
+        var p1Collision = checkCollision(player1.x, player1.y); //contra jugadores
+        var p1WallCollision = checkWalls(player1.x, player1.y);  // contra paredes
+        if(p1Collision || p1WallCollision){ 
+            player2.points += 1
+            lost('Jugador 2 gana c:', player1.points, player2.points)
+            resetGame(player1, player2); 
+            paddleSubscription.unsubscribe();
+            paddleSubscription = paddle$.subscribe(paddleObserver);
+        }
+
+        var p2Collision = checkCollision(player2.x, player2.y); //contra jugadores
+        var p2WallCollision = checkWalls(player2.x, player2.y);  // contra paredes
+        if(p2Collision || p2WallCollision){ 
+            player1.points += 1
+            lost('Jugador 1 gana c:', player1.points, player2.points)
+            resetGame(player1, player2);   
+            paddleSubscription.unsubscribe();
+            paddleSubscription = paddle$.subscribe(paddleObserver);
+        }
+    },
+    error: function(err:any){
+        console.error(err);
+    },
+    complete: function(){
+    }
+}
+
 const paddle$ = interval(10).pipe(
     withLatestFrom(input$),
     map( (x:any) => ({
@@ -100,54 +165,9 @@ const paddle$ = interval(10).pipe(
         ticks2: (previous.input === 2 || previous.input === -2) ? 0 : previous.ticks2 + 1,
         input: current.input
     }))
-).subscribe((x:any) => {
+)
 
-
-    if(!keep){return}
-    /* Dibujo a los dos jugadores */
-    player1.draw();
-    player2.draw();
-
-    /* Compruebo el tiempo de los inputs */
-    if (x.input === 1 || x.input === -1){
-        x.input = x.ticks1 > 20 ? x.input : 0;
-        player1.direction = newDirection(player1.direction, x.input);
-    }
-
-    if (x.input === 2 || x.input === -2){
-        x.input = x.ticks2 > 20 ? x.input : 0;
-        player2.direction = newDirection(player2.direction, x.input/2);
-    }
-
-    /* Muevo los jugadores (QUE ALGUIEN HAGA MAS BONITO ESTO)*/
-    if(player1.direction===3){ player1.y += SPEED }
-    if(player1.direction===2){ player1.x += SPEED }
-    if(player1.direction===4){ player1.x -= SPEED }
-    if(player1.direction===1){ player1.y -= SPEED }
-
-    if(player2.direction===3){ player2.y += SPEED }
-    if(player2.direction===2){ player2.x += SPEED }
-    if(player2.direction===4){ player2.x -= SPEED }
-    if(player2.direction===1){ player2.y -= SPEED }
-
-    /* Chekeo colisiones */
-    var p1Collision = checkCollision(player1.x, player1.y); //contra jugadores
-    var p1WallCollision = checkWalls(player1.x, player1.y);  // contra paredes
-    if(p1Collision || p1WallCollision){ 
-        player2.points += 1
-        lost('Jugador 2 gana c:', player1.points, player2.points)
-        paddle$.unsubscribe();
-    }
-
-    var p2Collision = checkCollision(player2.x, player2.y); //contra jugadores
-    var p2WallCollision = checkWalls(player2.x, player2.y);  // contra paredes
-    if(p2Collision || p2WallCollision){ 
-        player1.points += 1
-        lost('Jugador 1 gana c:', player1.points, player2.points)
-        paddle$.unsubscribe();
-    }
-
-})
+var paddleSubscription = paddle$.subscribe(paddleObserver)
 
 const pause$ = fromEvent(document, "keypress").pipe(
     filter((event:any) => event.key == "p")
