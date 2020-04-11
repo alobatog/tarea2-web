@@ -3,15 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Kurv Fiver</title>
     <link rel="stylesheet" href="App.css" type="text/css">
 </head>
 <body>
-    <h1>Rect</h1>
-    <div id="game_msg"></div>
-    <div id="score1">Puntos jugador 1: 0</div>
-    <div id="score2">Puntos jugador 2: 0</div>
-    <canvas id="stage" width="480" height="320" ></canvas>
+    <h1>Welcome to Kurv Fiver!</h1>
+    <div class="subtitle">
+      <h3>Let's play</h3>
+    </div>
+    <div class="main">
+      <div class="control">
+        <p>Controles del Jugador 1</p>
+        <p>A / D</p>
+      </div>
+      <canvas id="stage" width="480" height="320" ></canvas>
+      <div class="control">
+        <p>Controles del Jugador 2</p>
+        <p>Left Arrow / Right Arrow</p>
+      </div>
+    </div>
+    <div class="feedback">
+      <div id="game_msg">Haz click en cualquier tecla para comenzar</div>
+      <div class="score-table">
+        <div class="score-block">
+          <p>Puntaje Jugador 1</p>
+          <div id="score1" class="score">0</div>
+        </div>
+        <div class="score-block">
+          <p>Puntaje Jugador 2</p>
+          <div id="score2" class="score">0</div>
+        </div>
+      </div>
+    </div>
     <script src="/bundle.js"></script>
 </body>
 </html>
