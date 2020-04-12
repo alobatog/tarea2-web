@@ -1,5 +1,5 @@
 import { interval, fromEvent, merge, Observable, Subscription } from 'rxjs'
-import { map, scan, withLatestFrom, filter } from 'rxjs/operators'
+import { map, scan, withLatestFrom, filter, timeInterval } from 'rxjs/operators'
 import { component, GameArea } from './canvas'
 
 /* CONSTANTS/GAME_PARAMETERS */
@@ -14,12 +14,15 @@ let keep: boolean = true
 
 /* Aux Functions */
 
-const resetGame = function(): void {
+const resetGame = function(resetpoints:boolean = false): void {
     Area.clear()
     coordinates.clear()
     players.forEach((player) => {
         player.reset()
     })
+    if (resetpoints){
+        players.forEach(player => player.points = 0)
+    }
     paddleSubscription.unsubscribe()
     paddleSubscription = paddle$.subscribe(paddleObserver)
 }
@@ -173,6 +176,23 @@ pause$.pipe(filter((event: any) => event.key == "p"))
     .subscribe(() => {
         keep = !keep
     })
+
+const gethardkeydownObs  = (key:any) => fromEvent(document, "keydown").pipe(
+    filter((event: any) => event.key == key && !event.repeat))
+
+const getkeyupObs  = (key:any) => fromEvent(document, "keyup").pipe(
+        filter((event: any) => event.key == key))    
+
+const rkeydown$ = merge( gethardkeydownObs("r"), getkeyupObs("r")).pipe(
+    timeInterval(),
+    filter(x => x.value.type == "keyup" && x.interval >= 5000),
+    map((event) => console.log(event))
+).subscribe(()=>{
+    resetGame(true);
+    lost("Juego reiniciado", 0, 0)
+})
+
+
 let paddleSubscription: Subscription = paddle$.subscribe(paddleObserver)
 
 registerPlayer(player1)
