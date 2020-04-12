@@ -1,5 +1,5 @@
-import { interval, fromEvent, merge, Observable, Subscription } from 'rxjs'
-import { map, scan, withLatestFrom, filter, timeInterval } from 'rxjs/operators'
+import { interval, fromEvent, merge, Observable, Subscription, timer } from 'rxjs'
+import { map, scan, withLatestFrom, filter, takeUntil, switchMap, throttleTime } from 'rxjs/operators'
 import { component, GameArea } from './canvas'
 
 /* CONSTANTS/GAME_PARAMETERS */
@@ -89,6 +89,14 @@ const movePlayers = (): void => {
     })
 }
 
+const showOrHideOverlay = () => {
+    if (keep) {
+        document.getElementById("overlay").style.display = "none"
+    } else {
+        document.getElementById("overlay").style.display = "flex"
+    }
+}
+
 /* RXJS */
 
 const input$: Observable<any> = merge(
@@ -175,23 +183,24 @@ const pause$: Observable<any> = fromEvent(document, "keypress")
 pause$.pipe(filter((event: any) => event.key == "p"))
     .subscribe(() => {
         keep = !keep
+        showOrHideOverlay()
     })
 
-const gethardkeydownObs  = (key:any) => fromEvent(document, "keydown").pipe(
-    filter((event: any) => event.key == key && !event.repeat))
+const keyUpObs$: Observable<any> = fromEvent(document, "keyup").pipe(
+    filter((event: any) => event.key == "r")
+)
 
-const getkeyupObs  = (key:any) => fromEvent(document, "keyup").pipe(
-        filter((event: any) => event.key == key))    
-
-const rkeydown$ = merge( gethardkeydownObs("r"), getkeyupObs("r")).pipe(
-    timeInterval(),
-    filter(x => x.value.type == "keyup" && x.interval >= 5000),
-    map((event) => console.log(event))
-).subscribe(()=>{
-    resetGame(true);
+const restart$: Observable<any> = fromEvent(document, "keypress").pipe(
+    throttleTime(1100),
+    filter((event: any) => event.key == "r"),
+    switchMap(() => timer(1000).pipe(
+        takeUntil(keyUpObs$)
+    ))
+)
+restart$.subscribe(() => {
+    resetGame(true)
     lost("Juego reiniciado", 0, 0)
 })
-
 
 let paddleSubscription: Subscription = paddle$.subscribe(paddleObserver)
 
