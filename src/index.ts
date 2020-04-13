@@ -1,89 +1,171 @@
-import { interval, fromEvent, merge } from 'rxjs';
-import { map, scan, withLatestFrom } from 'rxjs/operators';
-import { component, canvas } from './canvas'
+import { interval, fromEvent, merge, Observable, Subscription, timer } from 'rxjs'
+import { map, scan, withLatestFrom, filter, takeUntil, switchMap, throttleTime } from 'rxjs/operators'
+import { component, GameArea } from './canvas'
 
-/* Functions */
+/* CONSTANTS/GAME_PARAMETERS */
 
-const SPEED:number = 0.5
-var coordinates = new Set()
+const SPEED: number = 0.5
+const player1: any = new (component as any)(5, 5, "red", 10, 120, 2)
+const player2: any = new (component as any)(5, 5, "blue", 470, 120, 4)
+const players: Array<any> = new Array()
+let coordinates: Set<any> = new Set()
+let Area: any = new (GameArea as any)
+let keep: boolean = true
 
-const addCoordinate = (x:number, y:number) => coordinates.add(x.toString() + y.toString())
+/* Aux Functions */
 
-const checkCollision = (x:number, y:number) => {
-    var val = x.toString() + y.toString();
-    if(coordinates.has(val)){ return true; }
-    addCoordinate(x, y);
-    return false;
+const resetGame = function(resetpoints:boolean = false): void {
+    Area.clear()
+    coordinates.clear()
+    players.forEach((player) => {
+        player.reset()
+    })
+    if (resetpoints){
+        players.forEach(player => player.points = 0)
+    }
+    paddleSubscription.unsubscribe()
+    paddleSubscription = paddle$.subscribe(paddleObserver)
 }
 
-
-const checkWalls = (x: number, y:number) => {
-    return (x === canvas.width || y === canvas.height || x === 0 || y === 1) ? true : false;
+const addCoordinate = (x: number, y: number): void => {
+    coordinates.add(`${x.toString()},${y.toString()}`)
 }
 
-const lost = (text:string) => {
-    var h = document.createElement("H1");
-    var t = document.createTextNode(text);
-    h.appendChild(t);
-    document.body.appendChild(h);
+const checkCollision = (x: number, y: number): boolean => {
+    const val: string = `${x.toString()},${y.toString()}`
+    if (coordinates.has(val)) { return true }
+    return false
 }
 
-const newDirection = (actual:number, move:number) => {
-    var direction = actual + move;
-    switch (direction){
+const checkWalls = (x: number, y: number): boolean =>
+    (x === Area.width || y === Area.height || x === 0 || y === 1)
+
+const lost = (text: string, pointsP1: number, pointsP2: number): void => {
+    document.getElementById("game_msg").textContent = text
+    document.getElementById("score1").textContent = pointsP1.toString()
+    document.getElementById("score2").textContent = pointsP2.toString()
+}
+
+const newDirection = (actual: number, move: number): number => {
+    const direction = actual + move
+    switch (direction) {
         case 5:
-            return 1;
+            return 1
         case 0:
-            return 4;
+            return 4
         default:
-            return direction;
+            return direction
+    }
+}
+
+const registerPlayer = (player: any): void => {
+    players.push(player)
+}
+
+const drawPlayers = (): void => {
+    players.forEach((player) => {
+        player.draw()
+    })
+}
+
+const movePlayers = (): void => {
+    players.forEach((player) => {
+        switch (player.direction) {
+            case 1:
+                player.y -= SPEED
+                break
+            case 2:
+                player.x += SPEED
+                break
+            case 3:
+                player.y += SPEED
+                break
+            case 4:
+                player.x -= SPEED
+                break
+            default:
+                console.error('Wrong direction')
+        }
+    })
+}
+
+const showOrHideOverlay = () => {
+    if (keep) {
+        document.getElementById("overlay").style.display = "none"
+    } else {
+        document.getElementById("overlay").style.display = "flex"
     }
 }
 
 /* RXJS */
 
-const ticker$ = interval(20).pipe(
-    map( () =>  ({
-        time: Date.now(),
-        delta: null
-    })),
-    scan((previous, current) => ({
-        time: current.time,
-        delta: (current.time - previous.time)
-    }))
-)
-
-const input$ = merge(
+const input$: Observable<any> = merge(
     fromEvent(document, 'keydown').pipe(
-        map( (event:any) => {
-            switch (event.key){
+        map((event: any): number => {
+            switch (event.key) {
                 case 'ArrowLeft':
-                    return -1
-                case 'ArrowRight':
-                    return 1
-                case 'd':
-                    return 2
-                case 'a':
                     return -2
+                case 'ArrowRight':
+                    return 2
+                case 'd':
+                    return 1
+                case 'a':
+                    return -1
                 default:
                     return 0
-            } 
+            }
         })
     ),
     fromEvent(document, 'keyup').pipe(map(() => 0))
 )
 
-var player1:any;
-var player2:any;
+const paddleObserver = {
+    next: function(x: any) {
+        if (!keep) { return }
 
-player1 = new (component as any)(5, 5, "red", 10, 120, 2);
-player1.draw();
+        /* Dibujo a los dos jugadores */
+        drawPlayers()
 
-player2 = new (component as any)(5, 5, "blue", 470, 120, 4);
-player2.draw();
+        /* Compruebo el tiempo de los inputs */
+        if (x.input === 1 || x.input === -1){
+            x.input = x.ticks1 > 20 ? x.input : 0
+            player1.direction = newDirection(player1.direction, x.input)
+        }
 
+        if (x.input === 2 || x.input === -2){
+            x.input = x.ticks2 > 20 ? x.input : 0
+            player2.direction = newDirection(player2.direction, x.input/2)
+        }
 
-const paddle$ = interval(10).pipe(
+        /* Jugadores se mueven */
+        movePlayers()
+
+        /* Chequeo colisiones */
+        const p1Collision = checkCollision(player1.x, player1.y) //contra jugadores
+        if (!p1Collision) { addCoordinate(player1.x, player1.y) }
+        const p1WallCollision = checkWalls(player1.x, player1.y)  // contra paredes
+        if (p1Collision || p1WallCollision) {
+            player2.points += 1
+            lost('Jugador 2 gana c:', player1.points, player2.points)
+            resetGame()
+        }
+
+        const p2Collision = checkCollision(player2.x, player2.y) //contra jugadores
+        if (!p2Collision) { addCoordinate(player2.x, player2.y) }
+        const p2WallCollision = checkWalls(player2.x, player2.y)  // contra paredes
+        if (p2Collision || p2WallCollision) {
+            player1.points += 1
+            lost('Jugador 1 gana c:', player1.points, player2.points)
+            resetGame()
+        }
+    },
+    error: function(err: any) {
+        console.error(err)
+    },
+    complete: function() {}
+}
+
+const paddle$: Observable<any> = interval(10).pipe(
     withLatestFrom(input$),
     map( (x:any) => ({
         ticks1: 1,
@@ -95,47 +177,33 @@ const paddle$ = interval(10).pipe(
         ticks2: (previous.input === 2 || previous.input === -2) ? 0 : previous.ticks2 + 1,
         input: current.input
     }))
-).subscribe((x:any) => {
+)
 
-    /* Dibujo a los dos jugadores */
-    player1.draw();
-    player2.draw();
+const pause$: Observable<any> = fromEvent(document, "keypress")
+pause$.pipe(filter((event: any) => event.key == "p"))
+    .subscribe(() => {
+        keep = !keep
+        showOrHideOverlay()
+    })
 
-    /* Compruebo el tiempo de los inputs */
-    if (x.input === 1 || x.input === -1){
-        x.input = x.ticks1 > 20 ? x.input : 0;
-        player1.direction = newDirection(player1.direction, x.input);
-    }
+const keyUpObs$: Observable<any> = fromEvent(document, "keyup").pipe(
+    filter((event: any) => event.key == "r")
+)
 
-    if (x.input === 2 || x.input === -2){
-        x.input = x.ticks2 > 20 ? x.input : 0;
-        player2.direction = newDirection(player2.direction, x.input/2);
-    }
-
-    /* Muevo los jugadores (QUE ALGUIEN HAGA MAS BONITO ESTO)*/
-    if(player1.direction===3){ player1.y += SPEED }
-    if(player1.direction===2){ player1.x += SPEED }
-    if(player1.direction===4){ player1.x -= SPEED }
-    if(player1.direction===1){ player1.y -= SPEED }
-
-    if(player2.direction===3){ player2.y += SPEED }
-    if(player2.direction===2){ player2.x += SPEED }
-    if(player2.direction===4){ player2.x -= SPEED }
-    if(player2.direction===1){ player2.y -= SPEED }
-
-    /* Chekeo colisiones */
-    var p1Collision = checkCollision(player1.x, player1.y); //contra jugadores
-    var p1WallCollision = checkWalls(player1.x, player1.y);  // contra paredes
-    if(p1Collision || p1WallCollision){ 
-        lost('Jugador 2 gana c:')
-        paddle$.unsubscribe();
-    }
-
-    var p2Collision = checkCollision(player2.x, player2.y); //contra jugadores
-    var p2WallCollision = checkWalls(player2.x, player2.y);  // contra paredes
-    if(p2Collision || p2WallCollision){ 
-        lost('Jugador 1 gana c:')
-        paddle$.unsubscribe();
-    }
-
+const restart$: Observable<any> = fromEvent(document, "keypress").pipe(
+    throttleTime(1100),
+    filter((event: any) => event.key == "r"),
+    switchMap(() => timer(1000).pipe(
+        takeUntil(keyUpObs$)
+    ))
+)
+restart$.subscribe(() => {
+    resetGame(true)
+    lost("Juego reiniciado", 0, 0)
 })
+
+let paddleSubscription: Subscription = paddle$.subscribe(paddleObserver)
+
+registerPlayer(player1)
+registerPlayer(player2)
+drawPlayers()
